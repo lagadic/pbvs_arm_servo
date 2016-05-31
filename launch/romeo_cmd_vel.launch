@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<launch>
+
+  <node name="visp_naoqi_ros" pkg="visp_naoqi_ros" type="visp_naoqi_ros" output="screen">
+      <rosparam file="$(find visp_naoqi_ros)/config/robot_config.yaml" command="load"/>
+      <param name="cmd_vel_topic_name" value="/cmd_vel" />
+  </node>
+
+
+</launch>
