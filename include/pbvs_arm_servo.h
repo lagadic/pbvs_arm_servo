@@ -29,10 +29,11 @@ public:
   ~pbvs_arm_servo();
   void publish();
   void spin();
-  void getActualPose(const geometry_msgs::PoseStampedConstPtr &msg);
-  void getDesiredPose(const geometry_msgs::PoseStampedConstPtr &msg);
+  void getActualPoseCb(const geometry_msgs::PoseStampedConstPtr &msg);
+  void getDesiredPoseCb(const geometry_msgs::PoseStampedConstPtr &msg);
   void getStatusPoseHandCb(const std_msgs::Int8::ConstPtr &status);
-  void setupCameraParameters(const sensor_msgs::CameraInfoConstPtr &cam_rgb);
+  void getStatusPoseDesiredCb(const std_msgs::Int8::ConstPtr &status);
+  void setupCameraParametersCb(const sensor_msgs::CameraInfoConstPtr &cam_rgb);
   void getRobotJoints();
 
 
@@ -49,8 +50,9 @@ protected:
   std::string actualPoseTopicName;  // default to /cmd_vel
   std::string desiredPoseTopicName;
   std::string imageTopicName;
-  std::string cameraRGBTopicName;
+  std::string cameraInfoTopicName;
   std::string statusPoseHandTopicName;
+  std::string statusPoseDesiredTopicName;
   std::string cmdVelTopicName;
   int freq;
   ros::Subscriber actualPoseSub;
@@ -58,6 +60,7 @@ protected:
   ros::Subscriber imageSub;
   ros::Subscriber camRgbInfoSub;
   ros::Subscriber statusPoseHandSub;
+  ros::Subscriber statusPoseDesiredSub;
   ros::Publisher cmdVelPub;
   // Messages
   sensor_msgs::JointState jointStateMsg;
@@ -68,6 +71,8 @@ protected:
   vpServoArm m_servo_arm;
 
   double servo_time_init;
+  int m_statusPoseHand;
+  int m_statusPoseDesired;
 
   vpHomogeneousMatrix m_actualPose;
   vpHomogeneousMatrix m_desiredPose;
@@ -80,9 +85,8 @@ protected:
   //conditions
   bool m_cMh_isInitialized;
   bool m_cMdh_isInitialized;
-  bool m_disp_is_initialized;
-  bool m_cam_is_initialized;
-  bool opt_right_arm;
-  int m_statusPoseHand;
+  bool m_setupCam_isInitialized;
+  bool m_statusPoseDesired_isEnable;
+  bool m_opt_right_arm;
 
 };
