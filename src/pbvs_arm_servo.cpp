@@ -129,6 +129,7 @@ void pbvs_arm_servo::publish()
   geometry_msgs::PoseStamped dMa_msg;
   vpColVector q_dot_larm;
   sensor_msgs::JointState q_dot_msg;
+  vpMouseButton::vpMouseButtonType button;
 
 
   if ( m_actualPose_computed && m_desiredPose_computed)
@@ -164,6 +165,12 @@ void pbvs_arm_servo::publish()
     vpDisplay::displayFrame(m_img_, m_desiredPose, m_cam_rgb, 0.1);
     vpDisplay::displayFrame(m_img_, m_actualPose, m_cam_rgb, 0.1);
     vpDisplay::flush(m_img_);
+
+    if(vpDisplay::getClick(m_img_, button, false)) {
+      if(button == vpMouseButton::button3)
+        ros::shutdown();
+    }
+
 
     ros::Time now = ros::Time::now();
     dMa_msg.header.stamp = now;
