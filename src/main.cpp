@@ -1,6 +1,6 @@
 #include <ros/ros.h>
 
-#include "visp_naoqi_robot.h"
+#include "pbvs_arm_servo.h"
 #include <visp_bridge/3dpose.h>
 #include <visp3/core/vpHomogeneousMatrix.h>
 
@@ -13,7 +13,7 @@ int main( int argc, char** argv )
 
   ros::NodeHandle n(std::string("~"));
 
-  pbvs_arm *node = new pbvs_arm(n);
+  pbvs_arm_servo *node = new pbvs_arm_servo(n);
 
   node->spin();
 
