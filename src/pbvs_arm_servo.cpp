@@ -16,29 +16,32 @@ pbvs_arm_servo::pbvs_arm_servo(ros::NodeHandle &nh)
   // read in config options
   n = nh;
 
-  m_img_.init(480,640);
+//  m_img_.init(480,640);
 
   m_disp_is_initialized = false;
   m_cam_is_initialized = false;
-  m_actualPose_computed = false;
-  m_desiredPose_computed = false;
+  m_cMh_isInitialized = false;
+  m_cMdh_isInitialized = false;
+  m_statusPoseHand = 0;
   servo_time_init = 0;
 
   n.param( "frequency", freq,100);
   n.param<std::string>("ActualPoseTopicName", actualPoseTopicName, "/visp_blobs_tracker/object_position");
   n.param<std::string>("DesiredPoseTopicName", desiredPoseTopicName, "/visp_blobs_tracker/object_des_position");
-  n.param<std::string>("ImageTopicName", imageTopicName, "/camera/rgb/image_raw");
-  n.param<std::string>("CameraRBGTopicName", cameraRGBTopicName, "/camera/rgb/camera_info");
+//  n.param<std::string>("ImageTopicName", imageTopicName, "/camera/rgb/image_raw");
+  n.param<std::string>("cameraInfoTopicName", cameraRGBTopicName, "/camera/rgb/camera_info");
   n.param<std::string>("cmdVelTopicName", cmdVelTopicName, "joint_state");
+  n.param<std::string>("StatusPoseHandTopicName", statusPoseHandTopicName, "/visp_blobs_tracker/status");
   n.param( "opt_right_arm", opt_right_arm, false );
 //  n.param<std::string>("Ip", ip, "198.18.0.1");
 //  n.param("Port", port, 9559);
 
   // Initialize subscriber and publisher
-  cam_rgb_info_sub = n.subscribe( cameraRGBTopicName, 1, (boost::function < void(const sensor_msgs::CameraInfo::ConstPtr&)>) boost::bind( &pbvs_arm_servo::setupCameraParameters, this, _1 ));
+  camRgbInfoSub = n.subscribe( cameraRGBTopicName, 1, (boost::function < void(const sensor_msgs::CameraInfo::ConstPtr&)>) boost::bind( &pbvs_arm_servo::setupCameraParameters, this, _1 ));
   desiredPoseSub = n.subscribe( desiredPoseTopicName, 1, (boost::function < void(const geometry_msgs::PoseStampedConstPtr&)>) boost::bind( &pbvs_arm_servo::getDesiredPose , this, _1 ));
   actualPoseSub = n.subscribe( actualPoseTopicName, 1, (boost::function < void(const geometry_msgs::PoseStampedConstPtr &)>) boost::bind( &pbvs_arm_servo::getActualPose, this, _1 ));
-  imageSub = n.subscribe( imageTopicName, 1, (boost::function < void(const sensor_msgs::Image::ConstPtr &)>) boost::bind( &pbvs_arm_servo::displayImage, this, _1 ));
+  statusPoseHandSub = n.subscribe ( statusPoseHandTopicName, 1, (boost::function < void(const std_msgs::Int8::ConstPtr  &)>) boost::bind( &pbvs_arm_servo::getStatusPoseHandCb, this, _1 ));
+  //  imageSub = n.subscribe( imageTopicName, 1, (boost::function < void(const sensor_msgs::Image::ConstPtr &)>) boost::bind( &pbvs_arm_servo::displayImage, this, _1 ));
   cmdVelPub = n.advertise<sensor_msgs::JointState >(cmdVelTopicName, 10);
 
 //  ROS_INFO("DEBUGGG 1 ");
@@ -113,7 +116,7 @@ pbvs_arm_servo::~pbvs_arm_servo(){
 
 void pbvs_arm_servo::spin()
 {
-  ros::Rate loop_rate(10);
+  ros::Rate loop_rate(freq);
   while(ros::ok()){
     this->publish();
     ros::spinOnce();
@@ -129,10 +132,9 @@ void pbvs_arm_servo::publish()
   geometry_msgs::PoseStamped dMa_msg;
   vpColVector q_dot_larm;
   sensor_msgs::JointState q_dot_msg;
-  vpMouseButton::vpMouseButtonType button;
 
 
-  if ( m_actualPose_computed && m_desiredPose_computed)
+  if ( m_cMh_isInitialized && m_cMdh_isInitialized && m_cam_is_initialized)
   {
     static bool first_time = true;
     if (first_time) {
@@ -161,16 +163,6 @@ void pbvs_arm_servo::publish()
     {
       q_dot_msg.velocity.push_back(q_dot_larm[i]);
     }
-    vpDisplay::display(m_img_);
-    vpDisplay::displayFrame(m_img_, m_desiredPose, m_cam_rgb, 0.1);
-    vpDisplay::displayFrame(m_img_, m_actualPose, m_cam_rgb, 0.1);
-    vpDisplay::flush(m_img_);
-
-    if(vpDisplay::getClick(m_img_, button, false)) {
-      if(button == vpMouseButton::button3)
-        ros::shutdown();
-    }
-
 
     ros::Time now = ros::Time::now();
     dMa_msg.header.stamp = now;
@@ -179,8 +171,6 @@ void pbvs_arm_servo::publish()
 
     cmdVelPub.publish(q_dot_msg);
 
-    m_actualPose_computed = false;
-    m_desiredPose_computed = false;
   }
 
 }
@@ -188,12 +178,12 @@ void pbvs_arm_servo::publish()
 
 void pbvs_arm_servo::getDesiredPose(const geometry_msgs::PoseStamped::ConstPtr &desiredPose)
 {
-  if ( !m_desiredPose_computed )
+  if ( !m_cMdh_isInitialized )
   {
     m_desiredPose = visp_bridge::toVispHomogeneousMatrix(desiredPose->pose);
 
     ROS_INFO("DesiredPose = true");
-    m_desiredPose_computed = true;
+    m_cMdh_isInitialized = true;
   }
 
 //  if (msg->velocity.size() != msg->name.size()) {
@@ -211,12 +201,12 @@ void pbvs_arm_servo::getDesiredPose(const geometry_msgs::PoseStamped::ConstPtr &
 void pbvs_arm_servo::getActualPose(const geometry_msgs::PoseStamped::ConstPtr &actualPose)
 {
   //ros::Time veltime = ros::Time::now();
-  if ( !m_actualPose_computed )
+  if ( !m_cMh_isInitialized )
   {
     m_actualPose = visp_bridge::toVispHomogeneousMatrix(actualPose->pose);
 
     ROS_INFO("ActualPose = true");
-    m_actualPose_computed = true;
+    m_cMh_isInitialized = true;
   }
 
 
@@ -231,29 +221,37 @@ void pbvs_arm_servo::getActualPose(const geometry_msgs::PoseStamped::ConstPtr &a
 
 }
 
-void pbvs_arm_servo::initDisplayVisp()
+//void pbvs_arm_servo::initDisplayVisp()
+//{
+//  if (! m_disp_is_initialized) {
+////    m_disp = new vpDisplayX(m_img_, 750, 0, "Image Viewer");
+////    m_disp->init(m_img_);
+////    m_disp->setTitle("Image Mono viewer");
+//    vpDisplay::flush(m_img_);
+//    vpDisplay::display(m_img_);
+//    ROS_INFO("Initialisation done");
+//    vpDisplay::flush(m_img_);
+
+//    m_disp_is_initialized = true;
+//  }
+
+//}
+
+//void pbvs_arm_servo::displayImage(const sensor_msgs::Image::ConstPtr& image)
+//{
+//  initDisplayVisp();
+
+//  m_img_ = visp_bridge::toVispImageRGBa(*image);
+
+//}
+
+
+void pbvs_arm_servo::getStatusPoseHandCb(const std_msgs::Int8::ConstPtr  &status)
 {
-  if (! m_disp_is_initialized) {
-    m_disp = new vpDisplayX(m_img_, 750, 0, "Image Viewer");
-//    m_disp->init(m_img_);
-//    m_disp->setTitle("Image Mono viewer");
-    vpDisplay::flush(m_img_);
-    vpDisplay::display(m_img_);
-    ROS_INFO("Initialisation done");
-    vpDisplay::flush(m_img_);
-
-    m_disp_is_initialized = true;
-  }
-
+  m_statusPoseHand = status->data;
 }
 
-void pbvs_arm_servo::displayImage(const sensor_msgs::Image::ConstPtr& image)
-{
-  initDisplayVisp();
 
-  m_img_ = visp_bridge::toVispImageRGBa(*image);
-
-}
 
 void pbvs_arm_servo::setupCameraParameters(const sensor_msgs::CameraInfoConstPtr &cam_rgb)
 {
@@ -267,19 +265,6 @@ void pbvs_arm_servo::setupCameraParameters(const sensor_msgs::CameraInfoConstPtr
 
 }
 
-//int main( int argc, char** argv )
-//{
-//  ros::init( argc, argv, "pbvs_arm_servo" );
 
-//  ros::NodeHandle n(std::string("~"));
-
-//  pbvs_arm_servo *node = new pbvs_arm_servo(n);
-
-//  node->spin();
-
-//  delete node;
-
-//  return 0;
-//}
 
 

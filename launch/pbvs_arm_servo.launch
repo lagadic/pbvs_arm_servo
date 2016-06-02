@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<launch>
+
+  <node name="pbvs_arm_servo" pkg="pbvs_arm_servo" type="pbvs_arm_main_node" output="screen">
+<!--       <rosparam file="$(find visp_naoqi_ros)/config/robot_config.yaml" command="load"/> -->
+      <param name="cameraInfoTopicName" value="/camera/camera_info" />
+
+  </node>
+
+
+</launch>
