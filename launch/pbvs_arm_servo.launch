@@ -3,7 +3,13 @@
 
   <node name="pbvs_arm_servo" pkg="pbvs_arm_servo" type="pbvs_arm_main_node" output="screen">
 <!--       <rosparam file="$(find visp_naoqi_ros)/config/robot_config.yaml" command="load"/> -->
-      <param name="cameraInfoTopicName" value="/camera/camera_info" />
+    <param name="cmdVelTopicName" value="/robot/controls/joint_states" />
+    <param name="actualPoseTopicName" value="/visp_blobs_tracker/object_position" />
+    <param name="desiredPoseTopicName" value="/visp_blobs_tracker/object_des_position" />
+    <param name="statusPoseHandTopicName" value="/visp_blobs_tracker/status" />
+    <param name="StatusPoseDesiredTopicName" value="/visp_blobs_tracker/status2" />    
+    <param name="statusPoseDesired_isEnable" value="false" /> <!-- if statusPoseDesired_isEnable is true the subscribe statusPoseHandTopicName is enabled: the servo is computed when status == 1.  -->
+    <param name="opt_arm" value="right" /> <!-- "rigth" or "left" -->
 
   </node>
 

@@ -27,66 +27,61 @@ public:
 
   pbvs_arm_servo(ros::NodeHandle &nh);
   ~pbvs_arm_servo();
-  void publish();
+  void computeControlLaw();
   void spin();
   void getActualPoseCb(const geometry_msgs::PoseStampedConstPtr &msg);
   void getDesiredPoseCb(const geometry_msgs::PoseStampedConstPtr &msg);
   void getStatusPoseHandCb(const std_msgs::Int8::ConstPtr &status);
   void getStatusPoseDesiredCb(const std_msgs::Int8::ConstPtr &status);
-  void setupCameraParametersCb(const sensor_msgs::CameraInfoConstPtr &cam_rgb);
   void getRobotJoints();
+  void publishCmdVel(const vpColVector &q);
 
 
 protected:
 
   // Robot
-  vpNaoqiRobot * romeo;
-  int port;
-  std::string ip;
-  std::vector <std::string> jointBodyNames;
+  vpNaoqiRobot robot;
+  std::vector<std::string> m_jointNames_arm;
+  int m_numJoints;
+  std::string m_chain_name;
+  vpColVector m_jointMin;
+  vpColVector m_jointMax;
+
   // ROS
   ros::NodeHandle n;
-  ros::Time veltime;
-  std::string actualPoseTopicName;  // default to /cmd_vel
+  std::string actualPoseTopicName;
   std::string desiredPoseTopicName;
-  std::string imageTopicName;
-  std::string cameraInfoTopicName;
   std::string statusPoseHandTopicName;
   std::string statusPoseDesiredTopicName;
   std::string cmdVelTopicName;
-  int freq;
+  std::string m_opt_arm;
   ros::Subscriber actualPoseSub;
   ros::Subscriber desiredPoseSub;
-  ros::Subscriber imageSub;
-  ros::Subscriber camRgbInfoSub;
   ros::Subscriber statusPoseHandSub;
   ros::Subscriber statusPoseDesiredSub;
   ros::Publisher cmdVelPub;
+  int freq;
+
   // Messages
-  sensor_msgs::JointState jointStateMsg;
-  std::vector<float> posState;
-  std::vector<float> velState;
+  sensor_msgs::JointState m_q_dot_msg;
 
   //Servo Arm
   vpServoArm m_servo_arm;
+  vpColVector m_q;
+  vpColVector m_q_dot;
+  vpColVector m_q2_dot;
 
-  double servo_time_init;
+  double m_servo_time_init;
   int m_statusPoseHand;
   int m_statusPoseDesired;
 
-  vpHomogeneousMatrix m_actualPose;
-  vpHomogeneousMatrix m_desiredPose;
+  vpHomogeneousMatrix m_cMh;
+  vpHomogeneousMatrix m_cMdh;
   vpHomogeneousMatrix oMe_Arm;
-  vpMatrix JacobienTeeeeest;
-
-  vpCameraParameters m_cam_rgb;
-
 
   //conditions
   bool m_cMh_isInitialized;
   bool m_cMdh_isInitialized;
-  bool m_setupCam_isInitialized;
   bool m_statusPoseDesired_isEnable;
-  bool m_opt_right_arm;
 
 };
