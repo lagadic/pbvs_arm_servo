@@ -33,6 +33,7 @@ public:
   void getDesiredPoseCb(const geometry_msgs::PoseStampedConstPtr &msg);
   void getStatusPoseHandCb(const std_msgs::Int8::ConstPtr &status);
   void getStatusPoseDesiredCb(const std_msgs::Int8::ConstPtr &status);
+  void savePoses();
   void getRobotJoints();
   void publishCmdVel(const vpColVector &q);
 
@@ -55,6 +56,8 @@ protected:
   std::string statusPoseDesiredTopicName;
   std::string cmdVelTopicName;
   std::string m_opt_arm;
+  std::string m_offsetFileName;
+  std::string m_offsetName;
   ros::Subscriber actualPoseSub;
   ros::Subscriber desiredPoseSub;
   ros::Subscriber statusPoseHandSub;
@@ -78,10 +81,14 @@ protected:
   vpHomogeneousMatrix m_cMh;
   vpHomogeneousMatrix m_cMdh;
   vpHomogeneousMatrix oMe_Arm;
+  vpHomogeneousMatrix m_dhMoffset;
+  vpHomogeneousMatrix m_cMhr;
 
   //conditions
   bool m_cMh_isInitialized;
   bool m_cMdh_isInitialized;
   bool m_statusPoseDesired_isEnable;
+  bool m_savePose;
+  bool m_useOffset;
 
 };
