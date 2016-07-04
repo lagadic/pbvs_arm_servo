@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<launch>
+
+  <node name="pbvs_arm_servo" pkg="pbvs_arm_servo" type="pbvs_arm_main_node" output="screen">
+<!--       <rosparam file="$(find visp_naoqi_ros)/config/robot_config.yaml" command="load"/> -->
+    <param name="cmdVelTopicName" value="/robot/controls/joint_states" />
+    <param name="actualPoseTopicName" value="/visp_blobs_tracker/object_position" />
+    <param name="desiredPoseTopicName" value="/door_handle_detection/pose_handle" />
+    <param name="statusPoseHandTopicName" value="/visp_blobs_tracker/status" />
+    <param name="StatusPoseDesiredTopicName" value="/door_handle_detection/status" />    
+    <param name="statusPoseDesired_isEnable" value="true" /> <!-- if statusPoseDesired_isEnable is true the subscribe statusPoseHandTopicName is enabled: the servo is computed when status == 1.  -->
+    <param name="armToControl" value="right" /> <!-- "rigth" or "left" -->
+    <param name="savePose" value="false" />
+    <param name="useOffset" value="true" /> 
+    <param name="offsetFileName" value="$(find pbvs_arm_servo)/data/offset_pose.xml" />
+    <param name="offsetName" value="HandleOffset" /> 
+
+
+  </node>
+
+
+</launch>

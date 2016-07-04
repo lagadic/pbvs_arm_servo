@@ -18,15 +18,20 @@ pbvs_arm_servo::pbvs_arm_servo(ros::NodeHandle &nh)
     m_statusPoseHand = 0;
     m_statusPoseDesired = 0;
     m_servo_time_init = 0;
+    m_computed.data = false;
+    m_activation = 0;
+    m_init = false;
 
     n.param( "frequency", freq, 100);
     n.param<std::string>("actualPoseTopicName", actualPoseTopicName, "/visp_blobs_tracker/object_position");
     n.param<std::string>("desiredPoseTopicName", desiredPoseTopicName, "/visp_blobs_tracker/object_des_position");
     n.param<std::string>("cmdVelTopicName", cmdVelTopicName, "joint_state");
     n.param<std::string>("statusPoseHandTopicName", statusPoseHandTopicName, "/visp_blobs_tracker/status");
+    n.param<std::string>("activationTopicName", activationTopicName, "/demo_romeo_door/pbvs_active");
     n.param<std::string>("armToControl", m_opt_arm, "right");
     n.param<std::string>("offsetFileName", m_offsetFileName, "/udd/bheintz/data_romeo/pose.xml");
     n.param<std::string>("offsetName", m_offsetName, "HandleOffset");
+    n.param<std::string>("cameraFrame", m_cameraFrameName, "SR300_rgb_optical_frame");
     n.param( "statusPoseDesired_isEnable", m_statusPoseDesired_isEnable, false );
     n.param("savePose", m_savePose, false);
     n.param("useOffset", m_useOffset, false);
@@ -43,7 +48,10 @@ pbvs_arm_servo::pbvs_arm_servo(ros::NodeHandle &nh)
     desiredPoseSub = n.subscribe( desiredPoseTopicName, 1, (boost::function < void(const geometry_msgs::PoseStampedConstPtr&)>) boost::bind( &pbvs_arm_servo::getDesiredPoseCb, this, _1 ));
     actualPoseSub = n.subscribe( actualPoseTopicName, 1, (boost::function < void(const geometry_msgs::PoseStampedConstPtr &)>) boost::bind( &pbvs_arm_servo::getActualPoseCb, this, _1 ));
     statusPoseHandSub = n.subscribe ( statusPoseHandTopicName, 1, (boost::function < void(const std_msgs::Int8::ConstPtr  &)>) boost::bind( &pbvs_arm_servo::getStatusPoseHandCb, this, _1 ));
+    activationSub = n.subscribe ( activationTopicName, 1, (boost::function < void(const std_msgs::Int8::ConstPtr  &)>) boost::bind( &pbvs_arm_servo::getActivationCb, this, _1 ));
     cmdVelPub = n.advertise<sensor_msgs::JointState >(cmdVelTopicName, 10);
+    pbvsComputedPub = n.advertise< std_msgs::Bool >("pbvs_computed", 1);
+//    poseWithOffsetPub = n.advertise< std_msgs::Bool >("pbvs_computed", 1);
     if ( !m_savePose )
     {
         if (m_opt_arm == "right")
@@ -107,16 +115,16 @@ pbvs_arm_servo::pbvs_arm_servo(ros::NodeHandle &nh)
 //        std::string outputFileNametMhr;
 //        outputFileNametMhr = "/udd/bheintz/data_romeo/TorsoHeadRoll.xml";
 
-        vpHomogeneousMatrix torsoLeftForehead(robot.getProxy()->getTransform("CameraLeft", 0, true));
-        vpHomogeneousMatrix torsoHeadRoll(robot.getProxy()->getTransform("HeadRoll", 0, true));
-        vpHomogeneousMatrix camera3dMheadRoll;
-        camera3dMheadRoll = c3dMc2d * torsoLeftForehead.inverse() * torsoHeadRoll;
-        if( xml.save(camera3dMheadRoll, "/udd/bheintz/data_romeo/camera3dMheadRoll.xml", "Pose") == vpXmlParserHomogeneousMatrix::SEQUENCE_OK )
-            std::cout << "Pose between the hand and the object successfully saved in \"" << m_offsetFileName << "\"" << std::endl;
-        else {
-            std::cout << "Failed to save the pose in \"" << m_offsetFileName << "\"" << std::endl;
-            std::cout << "A file with the same name exists. Remove it to be able to save the parameters..." << std::endl;
-        }
+//        vpHomogeneousMatrix torsoLeftForehead(robot.getProxy()->getTransform("CameraLeft", 0, true));
+//        vpHomogeneousMatrix torsoHeadRoll(robot.getProxy()->getTransform("HeadRoll", 0, true));
+//        vpHomogeneousMatrix camera3dMheadRoll;
+//        camera3dMheadRoll = c3dMc2d * torsoLeftForehead.inverse() * torsoHeadRoll;
+//        if( xml.save(camera3dMheadRoll, "/udd/bheintz/data_romeo/camera3dMheadRoll.xml", "Pose") == vpXmlParserHomogeneousMatrix::SEQUENCE_OK )
+//            std::cout << "Pose between the hand and the object successfully saved in \"" << m_offsetFileName << "\"" << std::endl;
+//        else {
+//            std::cout << "Failed to save the pose in \"" << m_offsetFileName << "\"" << std::endl;
+//            std::cout << "A file with the same name exists. Remove it to be able to save the parameters..." << std::endl;
+//        }
 //        if( xml.save(torsoHeadRoll, "/udd/bheintz/data_romeo/TorsoHeadRoll.xml", "Pose") == vpXmlParserHomogeneousMatrix::SEQUENCE_OK )
 //            std::cout << "Pose between the hand and the object successfully saved in \"" << m_offsetFileName << "\"" << std::endl;
 //        else {
@@ -149,8 +157,16 @@ void pbvs_arm_servo::spin()
 void pbvs_arm_servo::computeControlLaw()
 {
     vpHomogeneousMatrix currentFeature;
+    vpHomogeneousMatrix cMhandle_des;
+    vpRotationMatrix cRh;
+    vpTranslationVector cTh;
+    vpHomogeneousMatrix cMh;
+    geometry_msgs::Pose cMh_msg;
+    tf::Transform transformdh;
+    static tf::TransformBroadcaster br;
 
-    if ( m_cMh_isInitialized && m_cMdh_isInitialized  && m_statusPoseHand && m_statusPoseDesired)
+    std::cout << m_cMh_isInitialized << "  " << m_cMdh_isInitialized  << "  " <<  m_statusPoseHand << "  " <<  m_statusPoseDesired << "  " <<  m_activation << std::endl;
+    if ( m_cMh_isInitialized && m_cMdh_isInitialized  && m_statusPoseHand && m_statusPoseDesired && m_activation == 1)
     {
         static bool first_time = true;
         if (first_time) {
@@ -158,19 +174,33 @@ void pbvs_arm_servo::computeControlLaw()
             m_servo_time_init = vpTime::measureTimeSecond();
             first_time = false;
         }
-//        vpHomogeneousMatrix torsoRightForehead(robot.getProxy()->getTransform("CameraLeft", 0, true));
-//        vpHomogeneousMatrix torsoHeadRoll(robot.getProxy()->getTransform("HeadRoll", 0, true));
-
-//        m_cMhr = torsoRightForehead.inverse() * torsoHeadRoll;
-        vpAdaptiveGain lambda(0.8, 0.05, 8);
+        vpAdaptiveGain lambda(1, 0.05, 8);
         m_servo_arm.setLambda(lambda);
         m_servo_arm.set_eJe(robot.get_eJe(m_chain_name));
         if ( m_useOffset )
         {
             currentFeature = m_dhMoffset.inverse() * m_cMdh.inverse() * m_cMh;
+            cMhandle_des = m_cMdh * m_dhMoffset;
         }
         else
             currentFeature = m_cMdh.inverse() * m_cMh;
+
+        ////Publish the TF BEGIN////
+        transformdh.setOrigin( tf::Vector3(cMhandle_des[0][3], cMhandle_des[1][3], cMhandle_des[2][3] ));
+        cTh = cMhandle_des.getTranslationVector();
+        cRh = cMhandle_des.getRotationMatrix();
+        cMh = vpHomogeneousMatrix(cTh, cRh);
+        cMh_msg = visp_bridge::toGeometryMsgsPose(cMh);
+
+        tf::Quaternion qdh;
+        qdh.setX(cMh_msg.orientation.x);
+        qdh.setY(cMh_msg.orientation.y);
+        qdh.setZ(cMh_msg.orientation.z);
+        qdh.setW(cMh_msg.orientation.w);
+
+        transformdh.setRotation(qdh);
+        br.sendTransform(tf::StampedTransform(transformdh, ros::Time::now(), m_cameraFrameName, "desired_pose_tf"));
+        ////Publish the TF END////
         m_servo_arm.setCurrentFeature(currentFeature) ;
         // Create twist matrix from target Frame to Arm end-effector (WristPitch)
         vpVelocityTwistMatrix oVe_LArm(oMe_Arm);
@@ -184,11 +214,43 @@ void pbvs_arm_servo::computeControlLaw()
 
         publishCmdVel(m_q_dot + m_q2_dot);
 
+        vpTranslationVector t_error_grasp = currentFeature.getTranslationVector();
+        vpRotationMatrix R_error_grasp;
+        currentFeature.extract(R_error_grasp);
+        vpThetaUVector tu_error_grasp;
+        tu_error_grasp.buildFrom(R_error_grasp);
+        double theta_error_grasp;
+        vpColVector u_error_grasp;
+        tu_error_grasp.extract(theta_error_grasp, u_error_grasp);
+        double error_t_treshold = 0.001;
+
+        m_init = false;
+
+        if ( (sqrt(t_error_grasp.sumSquare()) < error_t_treshold) && (theta_error_grasp < vpMath::rad(3)) )
+        {
+          m_computed.data = true;
+          pbvsComputedPub.publish(m_computed);
+        }
+        std::cout << "We are servoing the arm " << m_activation << std::endl;
     }
-    else
+    else if (!m_init && m_activation == 0)
     {
-        vpColVector q_dot_zero(m_numJoints,0);
-        publishCmdVel(q_dot_zero);
+      m_init = true;
+      vpColVector q_dot_zero(m_numJoints,0);
+      publishCmdVel(q_dot_zero);
+      std::cout << "publishing just once" << std::endl;
+    }
+    else if ( m_activation == 1 &&( m_statusPoseHand == 0 || m_statusPoseDesired == 0) )
+    {
+      vpColVector q_dot_zero(m_numJoints,0);
+      publishCmdVel(q_dot_zero);
+    }
+    else if (m_activation == 2)
+    {
+      vpColVector q_dot_zero(m_numJoints,0);
+      publishCmdVel(q_dot_zero);
+      std::cout << "Shutting down the node" << std::endl;
+      ros::shutdown();
     }
 
 }
@@ -238,6 +300,11 @@ void pbvs_arm_servo::getStatusPoseHandCb(const std_msgs::Int8::ConstPtr  &status
 void pbvs_arm_servo::getStatusPoseDesiredCb(const std_msgs::Int8::ConstPtr  &status)
 {
     m_statusPoseDesired = status->data;
+}
+
+void pbvs_arm_servo::getActivationCb(const std_msgs::Int8::ConstPtr  &status)
+{
+    m_activation = status->data;
 }
 
 

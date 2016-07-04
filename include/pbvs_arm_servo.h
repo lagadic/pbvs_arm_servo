@@ -5,6 +5,9 @@
 #include <sensor_msgs/Image.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <std_msgs/Int8.h>
+#include <std_msgs/Bool.h>
+
+#include <tf/transform_broadcaster.h>
 
 #include <visp3/core/vpHomogeneousMatrix.h>
 #include <visp3/core/vpMatrix.h>
@@ -33,6 +36,7 @@ public:
   void getDesiredPoseCb(const geometry_msgs::PoseStampedConstPtr &msg);
   void getStatusPoseHandCb(const std_msgs::Int8::ConstPtr &status);
   void getStatusPoseDesiredCb(const std_msgs::Int8::ConstPtr &status);
+  void getActivationCb(const std_msgs::Int8::ConstPtr &status);
   void savePoses();
   void getRobotJoints();
   void publishCmdVel(const vpColVector &q);
@@ -53,20 +57,26 @@ protected:
   std::string actualPoseTopicName;
   std::string desiredPoseTopicName;
   std::string statusPoseHandTopicName;
+  std::string activationTopicName;
   std::string statusPoseDesiredTopicName;
   std::string cmdVelTopicName;
   std::string m_opt_arm;
   std::string m_offsetFileName;
   std::string m_offsetName;
+  std::string m_cameraFrameName;
   ros::Subscriber actualPoseSub;
+  ros::Subscriber activationSub;
   ros::Subscriber desiredPoseSub;
   ros::Subscriber statusPoseHandSub;
   ros::Subscriber statusPoseDesiredSub;
   ros::Publisher cmdVelPub;
+  ros::Publisher pbvsComputedPub;
+  ros::Publisher poseWithOffsetPub;
   int freq;
 
   // Messages
   sensor_msgs::JointState m_q_dot_msg;
+  std_msgs::Bool m_computed;
 
   //Servo Arm
   vpServoArm m_servo_arm;
@@ -90,5 +100,7 @@ protected:
   bool m_statusPoseDesired_isEnable;
   bool m_savePose;
   bool m_useOffset;
+  bool m_init;
+  unsigned int m_activation;
 
 };
