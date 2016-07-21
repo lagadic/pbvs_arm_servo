@@ -15,6 +15,8 @@
 #include <visp/vpXmlParserCamera.h>
 #include <visp/vpXmlParserHomogeneousMatrix.h>
 
+#include <visp/vpPlot.h>
+
 #include <visp_bridge/3dpose.h>
 #include <visp_bridge/image.h>
 #include <visp_bridge/camera.h>
@@ -72,6 +74,7 @@ protected:
   ros::Publisher cmdVelPub;
   ros::Publisher pbvsComputedPub;
   ros::Publisher poseWithOffsetPub;
+  ros::Publisher desiredPosePub;
   int freq;
 
   // Messages
@@ -101,6 +104,12 @@ protected:
   bool m_savePose;
   bool m_useOffset;
   bool m_init;
-  unsigned int m_activation;
+  bool m_plot;
+  int m_activation;
+
+  int m_compteur;
+  vpPlot *plotter_arm;
+  vpPlot *plotter_arm2;
+
 
 };

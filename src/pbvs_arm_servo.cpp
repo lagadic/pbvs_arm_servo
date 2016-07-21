@@ -5,6 +5,7 @@
 #include <visp_naoqi/vpNaoqiGrabber.h>
 #include <vpRomeoTkConfig.h>
 
+
 #include "pbvs_arm_servo.h"
 
 pbvs_arm_servo::pbvs_arm_servo(ros::NodeHandle &nh)
@@ -19,8 +20,8 @@ pbvs_arm_servo::pbvs_arm_servo(ros::NodeHandle &nh)
     m_statusPoseDesired = 0;
     m_servo_time_init = 0;
     m_computed.data = false;
-    m_activation = 0;
     m_init = false;
+    m_compteur = 0;
 
     n.param( "frequency", freq, 100);
     n.param<std::string>("actualPoseTopicName", actualPoseTopicName, "/visp_blobs_tracker/object_position");
@@ -35,6 +36,9 @@ pbvs_arm_servo::pbvs_arm_servo(ros::NodeHandle &nh)
     n.param( "statusPoseDesired_isEnable", m_statusPoseDesired_isEnable, false );
     n.param("savePose", m_savePose, false);
     n.param("useOffset", m_useOffset, false);
+    n.param("useDemo", m_activation, 0);
+    n.param("plot", m_plot, false);
+
 
     // Initialize subscriber and publisher
     if ( m_statusPoseDesired_isEnable )
@@ -48,7 +52,11 @@ pbvs_arm_servo::pbvs_arm_servo(ros::NodeHandle &nh)
     desiredPoseSub = n.subscribe( desiredPoseTopicName, 1, (boost::function < void(const geometry_msgs::PoseStampedConstPtr&)>) boost::bind( &pbvs_arm_servo::getDesiredPoseCb, this, _1 ));
     actualPoseSub = n.subscribe( actualPoseTopicName, 1, (boost::function < void(const geometry_msgs::PoseStampedConstPtr &)>) boost::bind( &pbvs_arm_servo::getActualPoseCb, this, _1 ));
     statusPoseHandSub = n.subscribe ( statusPoseHandTopicName, 1, (boost::function < void(const std_msgs::Int8::ConstPtr  &)>) boost::bind( &pbvs_arm_servo::getStatusPoseHandCb, this, _1 ));
-    activationSub = n.subscribe ( activationTopicName, 1, (boost::function < void(const std_msgs::Int8::ConstPtr  &)>) boost::bind( &pbvs_arm_servo::getActivationCb, this, _1 ));
+    if (m_activation != 1)
+      activationSub = n.subscribe ( activationTopicName, 1, (boost::function < void(const std_msgs::Int8::ConstPtr  &)>) boost::bind( &pbvs_arm_servo::getActivationCb, this, _1 ));
+    else
+      activationSub.shutdown();
+    desiredPosePub = n.advertise< geometry_msgs::PoseStamped >("pose_desired", 1);
     cmdVelPub = n.advertise<sensor_msgs::JointState >(cmdVelTopicName, 10);
     pbvsComputedPub = n.advertise< std_msgs::Bool >("pbvs_computed", 1);
 //    poseWithOffsetPub = n.advertise< std_msgs::Bool >("pbvs_computed", 1);
@@ -109,6 +117,47 @@ pbvs_arm_servo::pbvs_arm_servo(ros::NodeHandle &nh)
         }
         else
             std::cout << "Homogeneous matrix " << name_transform <<": " << std::endl << oMe_Arm << std::endl;
+
+
+        if (m_plot)
+        {
+          // Plotter
+          plotter_arm = new vpPlot(2);
+          plotter_arm->initGraph(0, 6); // visual features
+          plotter_arm->initGraph(1, m_numJoints); // d_dot
+          plotter_arm->setTitle(0, "Visual features error");
+          plotter_arm->setTitle(1, "joint velocities");
+
+          plotter_arm->setLegend(0, 0, "tx");
+          plotter_arm->setLegend(0, 1, "ty");
+          plotter_arm->setLegend(0, 2, "tz");
+          plotter_arm->setLegend(1, 0, "tux");
+          plotter_arm->setLegend(1, 1, "tuy");
+          plotter_arm->setLegend(1, 2, "tuz");
+
+          plotter_arm->setLegend(1, 0, "RshouderPitch");
+          plotter_arm->setLegend(1, 1, "RShoulderYaw");
+          plotter_arm->setLegend(1, 2, "RElbowRoll");
+          plotter_arm->setLegend(1, 3, "RElbowYaw");
+          plotter_arm->setLegend(1, 4, "RWristRoll");
+          plotter_arm->setLegend(1, 5, "RWristYaw");
+          plotter_arm->setLegend(1, 6, "RWristPitch");
+
+          // Plotter
+          plotter_arm2 = new vpPlot(1);
+          plotter_arm2->initGraph(0, m_numJoints); // d_dot
+          plotter_arm2->setTitle(0, "joint velocities");
+
+          plotter_arm2->setLegend(0, 0, "RshouderPitch");
+          plotter_arm2->setLegend(0, 1, "RShoulderYaw");
+          plotter_arm2->setLegend(0, 2, "RElbowRoll");
+          plotter_arm2->setLegend(0, 3, "RElbowYaw");
+          plotter_arm2->setLegend(0, 4, "RWristRoll");
+          plotter_arm2->setLegend(0, 5, "RWristYaw");
+          plotter_arm2->setLegend(0, 6, "RWristPitch");
+
+
+        }
 
 //        std::string outputFileNametMrf;
 //        outputFileNametMrf = "/udd/bheintz/data_romeo/TorsoRightForehead.xml";
@@ -199,7 +248,7 @@ void pbvs_arm_servo::computeControlLaw()
         qdh.setW(cMh_msg.orientation.w);
 
         transformdh.setRotation(qdh);
-        br.sendTransform(tf::StampedTransform(transformdh, ros::Time::now(), m_cameraFrameName, "desired_pose_tf"));
+        br.sendTransform(tf::StampedTransform(transformdh, ros::Time::now(), "SR300_rgb_optical_frame", "desired_pose_tf"));
         ////Publish the TF END////
         m_servo_arm.setCurrentFeature(currentFeature) ;
         // Create twist matrix from target Frame to Arm end-effector (WristPitch)
@@ -213,6 +262,12 @@ void pbvs_arm_servo::computeControlLaw()
         m_q2_dot  = m_servo_arm.m_task.secondaryTaskJointLimitAvoidance(m_q, m_q_dot, m_jointMin, m_jointMax);
 
         publishCmdVel(m_q_dot + m_q2_dot);
+
+        if (m_plot) {
+          plotter_arm->plot(0, m_compteur, m_servo_arm.m_task.getError());
+          plotter_arm->plot(1, m_compteur, m_q_dot + m_q2_dot);
+          plotter_arm2->plot(0, m_compteur, robot.getJointVelocity(m_jointNames_arm) );
+        }
 
         vpTranslationVector t_error_grasp = currentFeature.getTranslationVector();
         vpRotationMatrix R_error_grasp;
@@ -252,6 +307,8 @@ void pbvs_arm_servo::computeControlLaw()
       std::cout << "Shutting down the node" << std::endl;
       ros::shutdown();
     }
+    m_compteur ++;
+    ROS_INFO_STREAM(m_compteur);
 
 }
 

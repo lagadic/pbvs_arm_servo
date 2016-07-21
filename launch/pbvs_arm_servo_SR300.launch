@@ -11,7 +11,9 @@
     <param name="statusPoseDesired_isEnable" value="true" /> <!-- if statusPoseDesired_isEnable is true the subscribe statusPoseHandTopicName is enabled: the servo is computed when status == 1.  -->
     <param name="armToControl" value="right" /> <!-- "rigth" or "left" -->
     <param name="savePose" value="false" />
+    <param name="useDemo" value="0" />
     <param name="useOffset" value="true" /> 
+    <param name="plot" value="true" />
     <param name="offsetFileName" value="$(find pbvs_arm_servo)/data/offset_pose.xml" />
     <param name="offsetName" value="HandleOffset" /> 
 

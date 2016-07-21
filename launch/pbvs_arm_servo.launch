@@ -9,7 +9,14 @@
     <param name="statusPoseHandTopicName" value="/visp_blobs_tracker/status" />
     <param name="StatusPoseDesiredTopicName" value="/visp_blobs_tracker/status2" />    
     <param name="statusPoseDesired_isEnable" value="false" /> <!-- if statusPoseDesired_isEnable is true the subscribe statusPoseHandTopicName is enabled: the servo is computed when status == 1.  -->
-    <param name="opt_arm" value="right" /> <!-- "rigth" or "left" -->
+    <param name="armToControl" value="right" /> <!-- "rigth" or "left" -->
+    <param name="savePose" value="false" />
+    <param name="useDemo" value="1" /> 
+    <param name="useOffset" value="false" /> 
+    <param name="plot" value="true" /> 
+    <param name="offsetFileName" value="$(find pbvs_arm_servo)/data/offset_pose.xml" />
+    <param name="offsetName" value="HandleOffset" /> 
+
 
   </node>
 
